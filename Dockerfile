@@ -6,6 +6,9 @@ WORKDIR /app
 # 拷贝所有项目文件
 COPY . .
 
+# 拷贝 env 文件（开发环境）
+COPY apps/client/env.example apps/client/.env
+
 # 安装所有依赖
 RUN bun install
 
