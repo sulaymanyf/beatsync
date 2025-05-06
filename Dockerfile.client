@@ -12,13 +12,14 @@ ENV NODE_ENV=production
 COPY . .
 
 # 2. Install ALL monorepo dependencies using the copied files and lockfile
-#    Bun should correctly detect the workspaces from the root package.json
 RUN bun install --frozen-lockfile
 
 # 3. Build ONLY the client application using Turborepo
-RUN turbo run build --filter=client
+#    Use 'bunx' to execute the turbo binary from node_modules
+RUN bunx turbo run build --filter=client
 
 # --- Stage 2: Run ---
+# ... rest of the runner stage remains the same ...
 FROM node:20-alpine AS runner
 
 WORKDIR /app
@@ -30,16 +31,12 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN mkdir -p ./apps/client
 
 # Copy necessary artifacts from the builder stage
-# We only need the client's build output, public files, and package.json
 COPY --from=builder /app/apps/client/.next ./apps/client/.next
 COPY --from=builder /app/apps/client/public ./apps/client/public
 COPY --from=builder /app/apps/client/package.json ./apps/client/package.json
 
 # Copy necessary node_modules.
-# Consider Next.js standalone output (`output: 'standalone'` in next.config.ts) for smaller images.
-# This approach copies the entire resolved node_modules from the build stage.
 COPY --from=builder /app/node_modules ./node_modules
-# Copy client-specific node_modules if they exist and are necessary (less common with modern package managers)
 # COPY --from=builder /app/apps/client/node_modules ./apps/client/node_modules
 
 # Set the working directory for the CMD
