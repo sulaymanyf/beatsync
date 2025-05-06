@@ -1,7 +1,8 @@
 # 使用 bun 官方镜像来构建和启动项目
-FROM oven/bun:1.0 AS builder
+FROM oven/bun:latest AS builder 
 
 WORKDIR /app
+ENV NODE_ENV=production
 
 # 拷贝所有项目文件
 COPY . .
@@ -10,7 +11,8 @@ COPY . .
 COPY apps/client/env.example apps/client/.env
 
 # 安装所有依赖
-RUN bun install
+RUN bun install --frozen-lockfile
+
 
 
 WORKDIR /app
@@ -20,4 +22,4 @@ EXPOSE 3008
 EXPOSE 8089
 
 # 启动前后端服务
-CMD ["bun", "start"]
+CMD ["bun", "run", "start"]

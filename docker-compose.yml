@@ -7,6 +7,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3008:3000"  # 前端服务
-      - "8088:8089"  # 后端服务
+      - "8089:8089"  # 后端服务
     environment:
-      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8089
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8089/ws
