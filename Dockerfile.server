@@ -1,0 +1,36 @@
+# Dockerfile.server
+
+# Use a Bun base image
+FROM oven/bun:latest
+
+WORKDIR /app
+
+# Set NODE_ENV to production (good practice)
+ENV NODE_ENV=production
+
+# Copy package.json and lockfile for relevant workspaces + root
+COPY package.json bun.lockb ./
+COPY apps/server/package.json ./apps/server/
+COPY packages/shared/package.json ./packages/shared/
+# Copy other necessary workspace package.json files if server depends on them
+
+# Install ONLY production dependencies for the server and shared packages
+# This makes the image smaller
+RUN bun install --frozen-lockfile --production
+
+# Copy the server source code and shared package source code
+COPY apps/server ./apps/server
+COPY packages/shared ./packages/shared
+
+# Copy uploads directory structure if needed (or use volumes)
+# RUN mkdir -p uploads/audio
+
+# Expose the server port
+EXPOSE 8089
+
+# Command to start the server
+# Assumes the start script in apps/server/package.json is `bun run src/index.ts`
+# Using the direct command might be slightly more explicit
+CMD ["bun", "run", "apps/server/src/index.ts"]
+# Alternative using turbo (less common for single-service containers):
+# CMD ["bunx", "turbo", "run", "start", "--filter=server"]
