@@ -1,62 +1,55 @@
 # Dockerfile.client
 
 # --- Stage 1: Build ---
-    FROM oven/bun:latest AS builder
+# Use the Bun image for the builder stage to ensure 'bun' is available
+FROM oven/bun:latest AS builder
 
-    WORKDIR /app
-    
-    # Set NODE_ENV for production build
-    ENV NODE_ENV=production
-    
-    # Install bun globally to use for dependency installation
-    RUN npm install -g bun
-    
-    # Copy package.json and lockfile for all workspaces + root
-    COPY package.json bun.lock ./
-    COPY apps/client/package.json ./apps/client/
-    COPY apps/server/package.json ./apps/server/ # Needed for potentially shared deps resolution? Safer to include.
-    COPY packages/shared/package.json ./packages/shared/
-    # Copy other workspaces if they exist and are needed by client build
-    
-    # Install ALL monorepo dependencies using bun
-    RUN bun install --frozen-lockfile
-    
-    # Copy the rest of the monorepo source code
-    COPY . .
-    
-    # Build ONLY the client application using Turborepo
-    RUN turbo run build --filter=client
-    
-    # --- Stage 2: Run ---
-    FROM node:20-alpine AS runner
-    
-    WORKDIR /app
-    
-    ENV NODE_ENV=production
-    # Prevent Next.js telemetry during runtime
-    ENV NEXT_TELEMETRY_DISABLED 1
-    
-    # Copy build artifacts from the builder stage
-    COPY --from=builder /app/apps/client/.next ./apps/client/.next
-    COPY --from=builder /app/apps/client/public ./apps/client/public
-    COPY --from=builder /app/apps/client/package.json ./apps/client/package.json
-    # Copy necessary node_modules (Next.js runtime dependencies)
-    # NOTE: This copies the entire node_modules, which is large.
-    # Consider using Next.js standalone output (`output: 'standalone'` in next.config.ts)
-    # for a much smaller final image if possible.
-    COPY --from=builder /app/node_modules ./node_modules
-    COPY --from=builder /app/apps/client/node_modules ./apps/client/node_modules # May be needed if client has specific deps
-    
-    # Set the working directory to the client app
-    WORKDIR /app/apps/client
-    
-    # Expose the port Next.js runs on (default 3000)
-    EXPOSE 3000
-    
-    # Command to start the Next.js production server
-    # Uses the next binary from the root node_modules
-    CMD ["node", "../../node_modules/.bin/next", "start", "-p", "3000"]
-    
-    # Alternative CMD if using standalone output:
-    # WORKDIR /app/apps/client
-    # CMD ["node", "server.js"]
+WORKDIR /app
+
+# Set NODE_ENV for production build
+ENV NODE_ENV=production
+
+# Copy package.json and lockfile for all workspaces + root
+COPY package.json bun.lock ./
+COPY apps/client/package.json ./apps/client/
+COPY apps/server/package.json ./apps/server/ # Keep for bun install context
+COPY packages/shared/package.json ./packages/shared/
+# Copy other necessary workspace package.json files if needed
+
+# Install ALL monorepo dependencies using bun
+# No need to install bun globally, it's already here
+RUN bun install --frozen-lockfile
+
+# Copy the rest of the monorepo source code
+COPY . .
+
+# Build ONLY the client application using Turborepo
+# Ensure this builds the Next.js app correctly
+RUN turbo run build --filter=client
+
+# --- Stage 2: Run ---
+# Using Node for the runner is still fine and often recommended for Next.js stability
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED 1
+
+# Copy build artifacts from the builder stage
+COPY --from=builder /app/apps/client/.next ./apps/client/.next
+COPY --from=builder /app/apps/client/public ./apps/client/public
+COPY --from=builder /app/apps/client/package.json ./apps/client/package.json
+
+# Copy necessary node_modules.
+# Consider Next.js standalone output (`output: 'standalone'` in next.config.ts) for smaller images.
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/client/node_modules ./apps/client/node_modules
+
+# Set the working directory for the CMD
+WORKDIR /app/apps/client
+
+EXPOSE 3000
+
+# Command to start the Next.js production server using the node_modules from the root
+CMD ["node", "../../node_modules/.bin/next", "start", "-p", "3000"]
