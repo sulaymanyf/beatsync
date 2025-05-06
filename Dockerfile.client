@@ -1,7 +1,6 @@
 # Dockerfile.client
 
 # --- Stage 1: Build ---
-# Use the Bun image for the builder stage to ensure 'bun' is available
 FROM oven/bun:latest AS builder
 
 WORKDIR /app
@@ -9,26 +8,17 @@ WORKDIR /app
 # Set NODE_ENV for production build
 ENV NODE_ENV=production
 
-# Copy package.json and lockfile for all workspaces + root
-COPY package.json bun.lock ./
-COPY apps/client/package.json ./apps/client/
-COPY apps/server/package.json ./apps/server/ # Keep for bun install context
-COPY packages/shared/package.json ./packages/shared/
-# Copy other necessary workspace package.json files if needed
-
-# Install ALL monorepo dependencies using bun
-# No need to install bun globally, it's already here
-RUN bun install --frozen-lockfile
-
-# Copy the rest of the monorepo source code
+# 1. Copy ALL source code and configuration files first
 COPY . .
 
-# Build ONLY the client application using Turborepo
-# Ensure this builds the Next.js app correctly
+# 2. Install ALL monorepo dependencies using the copied files and lockfile
+#    Bun should correctly detect the workspaces from the root package.json
+RUN bun install --frozen-lockfile
+
+# 3. Build ONLY the client application using Turborepo
 RUN turbo run build --filter=client
 
 # --- Stage 2: Run ---
-# Using Node for the runner is still fine and often recommended for Next.js stability
 FROM node:20-alpine AS runner
 
 WORKDIR /app
@@ -36,15 +26,21 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Copy build artifacts from the builder stage
+# Explicitly create target directories in runner stage
+RUN mkdir -p ./apps/client
+
+# Copy necessary artifacts from the builder stage
+# We only need the client's build output, public files, and package.json
 COPY --from=builder /app/apps/client/.next ./apps/client/.next
 COPY --from=builder /app/apps/client/public ./apps/client/public
 COPY --from=builder /app/apps/client/package.json ./apps/client/package.json
 
 # Copy necessary node_modules.
 # Consider Next.js standalone output (`output: 'standalone'` in next.config.ts) for smaller images.
+# This approach copies the entire resolved node_modules from the build stage.
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/client/node_modules ./apps/client/node_modules
+# Copy client-specific node_modules if they exist and are necessary (less common with modern package managers)
+# COPY --from=builder /app/apps/client/node_modules ./apps/client/node_modules
 
 # Set the working directory for the CMD
 WORKDIR /app/apps/client
