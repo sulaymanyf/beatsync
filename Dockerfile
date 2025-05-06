@@ -9,19 +9,9 @@ COPY . .
 # 安装所有依赖
 RUN bun install
 
-# 构建前端和后端（如果有需要，可以单独构建）
-RUN bun run build --filter client...  # 构建客户端
-RUN bun run build --filter server...  # 构建后端
-
 # 生产环境：单独运行客户端和后端
 FROM oven/bun:1.0
 
-WORKDIR /app
-
-# 拷贝构建后的文件
-COPY --from=builder /app/apps/client /app/apps/client
-COPY --from=builder /app/apps/server /app/apps/server
-COPY --from=builder /app/node_modules /app/node_modules
 
 # 暴露端口（前端和后端）
 EXPOSE 3000
