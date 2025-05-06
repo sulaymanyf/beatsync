@@ -18,4 +18,4 @@ EXPOSE 3000
 EXPOSE 8080
 
 # 启动前后端服务
-CMD ["bun", "start"]
+CMD ["bun", "start", "--prod"]
